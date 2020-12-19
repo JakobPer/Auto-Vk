@@ -3782,6 +3782,7 @@ namespace avk
 
 	framebuffer root::create_framebuffer(resource_ownership<renderpass_t> aRenderpass, std::vector<resource_ownership<image_view_t>> aImageViews, uint32_t aWidth, uint32_t aHeight, std::function<void(framebuffer_t&)> aAlterConfigBeforeCreation)
 	{
+		uint32_t num_layers = aImageViews[0]->get_image().mCreateInfo.arrayLayers;
 		framebuffer_t result;
 		result.mRenderpass = aRenderpass.own(); // move
 		result.mImageViews.reserve(aImageViews.size());
@@ -3801,7 +3802,7 @@ namespace avk
 			.setWidth(aWidth)
 			.setHeight(aHeight)
 			// TODO: Support multiple layers of image arrays!
-			.setLayers(1u); // number of layers in image arrays [6]
+			.setLayers(num_layers); // number of layers in image arrays [6]
 
 		// Maybe alter the config?!
 		if (aAlterConfigBeforeCreation) {
@@ -4708,7 +4709,7 @@ namespace avk
 			.setImageType(vk::ImageType::e2D) // TODO: Support 3D textures
 			.setExtent(vk::Extent3D(static_cast<uint32_t>(aWidth), static_cast<uint32_t>(aHeight), 1u))
 			.setMipLevels(mipLevels)
-			.setArrayLayers(1u) // TODO: support multiple array layers!!!!!!!!!
+			.setArrayLayers(aNumLayers) // TODO: support multiple array layers!!!!!!!!!
 			.setFormat(format)
 			.setTiling(imageTiling)
 			.setInitialLayout(vk::ImageLayout::eUndefined)
@@ -6734,7 +6735,7 @@ using namespace cpplinq;
 				finalLayout = vk::ImageLayout::eColorAttachmentOptimal;
 			}
 			if (lastUsage.as_depth_stencil()) {
-				finalLayout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
+				finalLayout = vk::ImageLayout::eDepthStencilReadOnlyOptimal;
 				{
 					// TODO: Set other depth/stencil-specific formats
 					//       - vk::ImageLayout::eDepthReadOnlyStencilAttachmentOptimal
@@ -6758,7 +6759,13 @@ using namespace cpplinq;
 			if (a.mImageUsageHintAfter.has_value()) {
 				// If we detect the image usage to be more generic, we should change the layout to something more generic
 				if (avk::has_flag(a.mImageUsageHintAfter.value(), avk::image_usage::sampled)) {
-					finalLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
+					if(a.is_used_as_depth_stencil_attachment())
+					{
+						finalLayout = vk::ImageLayout::eDepthStencilReadOnlyOptimal;
+					}
+					else {
+						finalLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
+					}
 				}
 				if (avk::has_flag(a.mImageUsageHintAfter.value(), avk::image_usage::shader_storage)) {
 					finalLayout = vk::ImageLayout::eGeneral;
